@@ -1,0 +1,6 @@
+{
+  "name": "ExamSetu — Live Quiz",
+  "description": "Single-screen classroom live quiz projection tool for teachers with NCERT subject mapping and live timed MCQ display.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
