@@ -50,26 +50,28 @@ export const Step5Settings: React.FC<Step5SettingsProps> = ({
 
       <form onSubmit={handleSubmit} className="space-y-6 mb-8">
         {/* Input 1: Question Count */}
-        <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-          <label className="block text-sm font-bold text-slate-800">
-            Number of Questions to Generate
-          </label>
-          <p className="text-xs text-slate-500">
-            Type any number of questions (e.g., 5, 10, 15, or 20) to stream live from NCERT.
-          </p>
-          <div className="flex items-center gap-3 pt-2">
-            <input
-              type="number"
-              min="1"
-              max="100"
-              required
-              value={questionCount}
-              onChange={(e) => setQuestionCount(parseInt(e.target.value, 10) || 1)}
-              className="w-32 px-4 py-2.5 bg-white border border-slate-300 font-mono font-bold text-lg text-amber-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-2xs"
-            />
-            <span className="text-sm font-semibold text-slate-600">Questions</span>
+        {initialConfig.creationMode !== 'custom' && (
+          <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <label className="block text-sm font-bold text-slate-800">
+              Number of Questions to Generate
+            </label>
+            <p className="text-xs text-slate-500">
+              Type any number of questions (e.g., 5, 10, 15, or 20) to stream live from NCERT.
+            </p>
+            <div className="flex items-center gap-3 pt-2">
+              <input
+                type="number"
+                min="1"
+                max="100"
+                required
+                value={questionCount}
+                onChange={(e) => setQuestionCount(parseInt(e.target.value, 10) || 1)}
+                className="w-32 px-4 py-2.5 bg-white border border-slate-300 font-mono font-bold text-lg text-amber-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 shadow-2xs"
+              />
+              <span className="text-sm font-semibold text-slate-600">Questions</span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Input 2: Total Roll Numbers */}
         <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
@@ -124,7 +126,7 @@ export const Step5Settings: React.FC<Step5SettingsProps> = ({
             </span>
           </div>
           <div className="font-bold text-amber-700 bg-white px-3 py-1.5 rounded-lg border border-amber-100">
-            {questionCount} Questions • Roster 1–{rollCount}
+            {initialConfig.creationMode !== 'custom' ? `${questionCount} Questions • ` : ''}Roster 1–{rollCount}
           </div>
         </div>
 
@@ -148,6 +150,12 @@ export const Step5Settings: React.FC<Step5SettingsProps> = ({
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Connecting & Generating...</span>
+              </>
+            ) : initialConfig.creationMode === 'custom' ? (
+              <>
+                <Sparkles className="w-5 h-5 fill-white/20" />
+                <span>Start Building Custom Quiz</span>
+                <Play className="w-4 h-4 fill-white" />
               </>
             ) : (
               <>

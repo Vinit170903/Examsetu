@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppScreen, QuizConfig, Medium, Question, SavedQuiz, Student, StudentReport, ClassQuizReport } from './types';
+import { AppScreen, QuizConfig, Medium, Question, SavedQuiz, Student, StudentReport, ClassQuizReport, AttendanceRecord } from './types';
 import { useMcqGenerator } from './hooks/useMcqGenerator';
 import { getSubjectsForClass, getChaptersForClassAndSubject } from './data/ncertData';
 import { useToast } from './contexts/ToastContext';
@@ -8,7 +8,9 @@ import { Navbar } from './components/Navbar';
 import { HomeScreen } from './components/HomeScreen';
 import { SavedQuizzesScreen } from './components/SavedQuizzesScreen';
 import { StudentManageScreen } from './components/StudentManageScreen';
+import { BulkStudentManageScreen } from './components/BulkStudentManageScreen';
 import { StudentDashboardScreen } from './components/StudentDashboardScreen';
+import { AttendanceDashboardScreen } from './components/AttendanceDashboardScreen';
 import { WizardSteps } from './components/Wizard/WizardSteps';
 import { Step1Medium } from './components/Wizard/Step1Medium';
 import { Step2Class } from './components/Wizard/Step2Class';
@@ -21,6 +23,7 @@ import { QuizCompleteScreen } from './components/QuizCompleteScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ClassSelectionScreen } from './components/ClassSelectionScreen';
 import { PollCreatorScreen } from './components/PollCreatorScreen';
+import { CustomQuizBuilderScreen } from './components/CustomQuizBuilderScreen'; // Force IDE refresh
 
 export const sortClasses = (classes: string[]) => {
   return [...classes].sort((a, b) => {
@@ -139,6 +142,21 @@ export default function App() {
     localStorage.setItem('examsetu_class_reports', JSON.stringify(classReports));
   }, [classReports]);
 
+  // Load attendance records from local storage
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
+    try {
+      const item = localStorage.getItem('examsetu_attendance_records');
+      return item ? JSON.parse(item) : [];
+    } catch (error) {
+      console.error('Error loading attendance records', error);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('examsetu_attendance_records', JSON.stringify(attendanceRecords));
+  }, [attendanceRecords]);
+
   // Initialize default quiz configuration
   const defaultChapters = getChaptersForClassAndSubject('class-9', 'Science').slice(0, 3);
   const equalWeight = Math.floor(100 / defaultChapters.length);
@@ -179,7 +197,7 @@ export default function App() {
 
   // Home Screen actions
   const handleStartWizard = (quizName: string, type: 'quiz' | 'poll') => {
-    setQuizConfig(prev => ({ ...prev, quizName, type }));
+    setQuizConfig(prev => ({ ...prev, quizName, type, creationMode: 'ai' }));
     if (type === 'poll') {
       setScreen('poll_creator');
     } else {
@@ -187,6 +205,13 @@ export default function App() {
       setMaxReachedStep(0);
       setScreen('wizard');
     }
+  };
+
+  const handleStartCustomQuiz = (quizName: string) => {
+    setQuizConfig(prev => ({ ...prev, quizName, type: 'quiz', creationMode: 'custom' }));
+    setWizardStepIdx(0);
+    setMaxReachedStep(0);
+    setScreen('wizard');
   };
 
   const handleNavigate = (targetScreen: AppScreen) => {
@@ -240,10 +265,14 @@ export default function App() {
   // Step 5: Start Quiz Generation
   const handleStartQuiz = async (finalConfig: QuizConfig) => {
     setQuizConfig(finalConfig);
-    const resultQuestions = await generateQuestions(finalConfig);
-    if (resultQuestions && resultQuestions.length > 0) {
-      setQuizQuestions(resultQuestions);
-      setScreen('review');
+    if (finalConfig.creationMode === 'custom') {
+      setScreen('custom_quiz_builder');
+    } else {
+      const resultQuestions = await generateQuestions(finalConfig);
+      if (resultQuestions && resultQuestions.length > 0) {
+        setQuizQuestions(resultQuestions);
+        setScreen('review');
+      }
     }
   };
 
@@ -274,7 +303,7 @@ export default function App() {
       isDestructive: true,
       confirmText: 'Discard'
     });
-    
+
     if (isConfirmed) {
       setScreen('home');
     }
@@ -302,7 +331,11 @@ export default function App() {
     // Or we could track `editingQuizId` but removing it is a quick workaround for "Save as" behavior.
     setSavedQuizzes(prev => prev.filter(q => q.id !== quiz.id));
 
-    setScreen('review');
+    if (quiz.config.creationMode === 'custom') {
+      setScreen('custom_quiz_builder');
+    } else {
+      setScreen('review');
+    }
   };
 
   const handleDeleteSavedQuiz = async (id: string, isPoll: boolean = false) => {
@@ -312,7 +345,7 @@ export default function App() {
       isDestructive: true,
       confirmText: 'Delete'
     });
-    
+
     if (isConfirmed) {
       if (isPoll) {
         setSavedPolls(prev => prev.filter(q => q.id !== id));
@@ -345,7 +378,7 @@ export default function App() {
       )}
 
       {/* Main Container */}
-      <main className={`flex-1 w-full mx-auto flex flex-col ${screen === 'live' ? 'px-4 sm:px-8 max-w-[1800px] py-2 sm:py-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6'}`}>
+      <main className={`flex-1 w-full mx-auto flex flex-col ${screen === 'live' || screen === 'custom_quiz_builder' ? 'px-4 sm:px-8 max-w-[1800px] py-2 sm:py-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6'}`}>
         {screen === 'login' && (
           <LoginScreen onLoginSuccess={(name) => {
             localStorage.setItem('examsetu_is_logged_in', 'true');
@@ -369,6 +402,7 @@ export default function App() {
           <HomeScreen
             onNavigate={handleNavigate}
             onStartWizard={handleStartWizard}
+            onStartCustomQuiz={handleStartCustomQuiz}
             onPlayQuiz={handlePlaySavedQuiz}
             savedQuizzes={savedQuizzes}
             savedPolls={savedPolls}
@@ -383,9 +417,18 @@ export default function App() {
             classReports={classReports}
             setClassReports={setClassReports}
             allowedClasses={allowedClasses}
+            students={students}
             onPlay={handlePlaySavedQuiz}
             onEdit={handleEditSavedQuiz}
             onDelete={handleDeleteSavedQuiz}
+            onUpload={(quiz) => {
+              if (quiz.config.type === 'poll') {
+                setSavedPolls(prev => [quiz, ...prev]);
+              } else {
+                setSavedQuizzes(prev => [quiz, ...prev]);
+              }
+              showToast('Quiz imported successfully!', 'success');
+            }}
             onBack={() => setScreen('home')}
           />
         )}
@@ -406,6 +449,10 @@ export default function App() {
             onAddStudent={(classId) => {
               setPreselectedClassId(classId);
               setScreen('student_register');
+            }}
+            onBulkAddStudent={(classId) => {
+              setPreselectedClassId(classId);
+              setScreen('bulk_student_register');
             }}
             onBack={() => setScreen('home')}
           />
@@ -432,6 +479,30 @@ export default function App() {
           />
         )}
 
+        {screen === 'bulk_student_register' && (
+          <BulkStudentManageScreen
+            initialClassId={preselectedClassId}
+            existingStudents={students}
+            onSaveStudents={(pairedStudents) => {
+              setStudents(prev => {
+                let updated = [...prev];
+                pairedStudents.forEach(s => {
+                  const existingIndex = updated.findIndex(p => p.macId === s.macId && p.classId === s.classId);
+                  if (existingIndex >= 0) {
+                    updated[existingIndex] = s;
+                  } else {
+                    updated.push(s);
+                  }
+                });
+                return updated;
+              });
+              showToast(`${pairedStudents.length} students paired and saved successfully!`, 'success');
+              setScreen('student_add');
+            }}
+            onBack={() => setScreen('student_add')}
+          />
+        )}
+
         {screen === 'dashboard' && (
           <StudentDashboardScreen
             mode="reports"
@@ -447,6 +518,16 @@ export default function App() {
             onDeleteStudent={(macId, classId) => {
               setStudents(prev => prev.filter(p => !(p.macId === macId && p.classId === classId)));
             }}
+            onBack={() => setScreen('home')}
+          />
+        )}
+
+        {screen === 'attendance' && (
+          <AttendanceDashboardScreen
+            students={students}
+            allowedClasses={allowedClasses}
+            attendanceRecords={attendanceRecords}
+            setAttendanceRecords={setAttendanceRecords}
             onBack={() => setScreen('home')}
           />
         )}
@@ -471,6 +552,27 @@ export default function App() {
               setQuizConfig(config);
               setQuizQuestions(questions);
               setScreen('live');
+            }}
+            onBack={() => setScreen('home')}
+          />
+        )}
+
+        {screen === 'custom_quiz_builder' && (
+          <CustomQuizBuilderScreen
+            initialConfig={quizConfig}
+            initialQuestions={quizQuestions}
+            allowedClasses={allowedClasses}
+            onSaveQuiz={(config, questions) => {
+              setQuizConfig(config);
+              setQuizQuestions(questions);
+              const newSavedQuiz: SavedQuiz = {
+                id: `SQ${Date.now()}`,
+                createdAt: Date.now(),
+                config,
+                questions,
+              };
+              setSavedQuizzes(prev => [newSavedQuiz, ...prev]);
+              setScreen('saved_quizzes');
             }}
             onBack={() => setScreen('home')}
           />
@@ -575,11 +677,24 @@ export default function App() {
             config={quizConfig}
             questions={quizQuestions}
             students={students}
+            allowedClasses={allowedClasses}
             isFallback={isFallback}
             fallbackError={generatorError}
             onFinishQuiz={(results) => {
               setQuizResults(results);
               setScreen('complete');
+            }}
+            onSaveStudent={(s) => {
+              setStudents(prev => {
+                const existing = prev.findIndex(p => p.macId === s.macId && p.classId === s.classId);
+                if (existing >= 0) {
+                  const newArr = [...prev];
+                  newArr[existing] = s;
+                  return newArr;
+                }
+                return [...prev, s];
+              });
+              showToast(`Student ${s.name} saved successfully!`, 'success');
             }}
           />
         )}

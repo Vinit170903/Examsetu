@@ -2,16 +2,19 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Question, QuizConfig, Student } from '../types';
 import { useToast } from '../contexts/ToastContext';
 import { useCountdown } from '../hooks/useCountdown';
-import { Users, Play, Pause, SkipForward, RotateCcw, AlertTriangle, Sparkles, CheckCircle2, Usb, Unplug } from 'lucide-react';
+import { Users, Play, Pause, SkipForward, RotateCcw, AlertTriangle, Sparkles, CheckCircle2, Usb, Unplug, Image as ImageIcon } from 'lucide-react';
 import { useGlobalWebSerial } from '../hooks/WebSerialProvider';
+import { StudentManageScreen } from './StudentManageScreen';
 
 interface LiveQuizScreenProps {
   config: QuizConfig;
   questions: Question[];
   students: Student[];
+  allowedClasses: string[];
   isFallback?: boolean;
   fallbackError?: string | null;
   onFinishQuiz: (results: Record<number, string>[]) => void;
+  onSaveStudent: (student: Student) => void;
 }
 
 export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
@@ -21,10 +24,13 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
   fallbackError,
   onFinishQuiz,
   students,
+  allowedClasses,
+  onSaveStudent,
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [quizResults, setQuizResults] = useState<Record<number, string>[]>([]);
   const [showPollResults, setShowPollResults] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
   const { isConnected, connect, disconnect, clickLog, resetAnswered } = useGlobalWebSerial();
   const { showToast } = useToast();
   const lastProcessedClickTimestamp = useRef<number>(0);
@@ -132,8 +138,9 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
     resetTimer(timerLimit);
   }, [currentIndex, resetTimer, timerLimit]);
 
-  // Roll number roster array (1 to rollCount)
-  const rosterRollNumbers = Array.from({ length: config.rollCount }, (_, i) => i + 1);
+  // Roll number roster array from registered students
+  const classStudentsForRoster = students.filter(s => s.classId.toLowerCase().replace('-', ' ').trim() === config.classNameDisplay.toLowerCase().replace('-', ' ').trim());
+  const rosterRollNumbers = classStudentsForRoster.map(s => s.rollNo).sort((a, b) => a - b);
 
   // Calculate poll results if showing (always show for live polls)
   const isLivePoll = config.type === 'poll' && config.showLiveResults !== false;
@@ -181,7 +188,7 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
           </button>
         </div>
         <div className="text-[11.5px] text-[#8A8272] my-[10px] pb-[14px] border-b border-dashed border-[#E4DCC8]">
-          {config.type === 'poll' ? 'Green = student ne respond kar diya hai' : `Static reference for classroom projection · ${config.rollCount} roll numbers`}
+          {config.type === 'poll' ? 'Green = student ne respond kar diya hai' : `Registered students in ${config.classNameDisplay} · ${rosterRollNumbers.length} roll numbers`}
         </div>
 
         {config.isAnonymous ? (
@@ -189,8 +196,20 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
             <Users className="w-10 h-10 text-slate-300 mb-3" />
             <h4 className="text-slate-600 font-bold mb-1">Anonymous Mode</h4>
             <p className="text-slate-400 text-xs">Roll numbers are hidden.</p>
-            <div className="mt-4 text-2xl font-black text-indigo-600">{answeredRolls.size} / {config.rollCount}</div>
+            <div className="mt-4 text-2xl font-black text-indigo-600">{answeredRolls.size} / {config.rollCount || 0}</div>
             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Responses</div>
+          </div>
+        ) : (!config.rollCount || rosterRollNumbers.length === 0) ? (
+          <div className="flex flex-col items-center justify-center h-[200px] text-center border-2 border-dashed border-amber-200 rounded-xl bg-amber-50">
+            <Users className="w-10 h-10 text-amber-300 mb-3" />
+            <h4 className="text-amber-800 font-bold mb-1">Undefined Students</h4>
+            <p className="text-amber-600/70 text-xs mb-4 px-4">No students are assigned for this class yet. Please add students to see their rolls here.</p>
+            <button
+              onClick={() => setShowAddStudent(true)}
+              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 transition-colors shadow-sm flex items-center gap-2"
+            >
+              + Add Student
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-[8px] max-h-[400px] overflow-y-auto">
@@ -260,9 +279,32 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
             </div>
           </div>
 
-          <div className="font-['Space_Grotesk'] text-[20px] font-semibold leading-relaxed text-[#14213D] bg-[#FBF7EE] border border-[#E4DCC8] rounded-[14px] p-[28px_30px] mb-[28px]">
-            {currentQuestion.text}
-          </div>
+          {currentQuestion.imageUrl && config.creationMode === 'custom' ? (
+            <div className="flex flex-col lg:flex-row gap-6 mb-[28px]">
+              <div className="relative w-full lg:w-[280px] shrink-0 bg-white border border-[#E4DCC8] rounded-[16px] p-2 flex items-center justify-center min-h-[160px] overflow-hidden">
+                <img src={currentQuestion.imageUrl} alt="Question Media" className="max-w-full max-h-[220px] object-contain rounded-[12px]" />
+                <div className="absolute bottom-2 left-2 bg-[#14213D]/80 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1.5 rounded-md flex items-center gap-1.5 shadow-sm">
+                  <ImageIcon className="w-3.5 h-3.5" /> Teacher-uploaded image
+                </div>
+              </div>
+              <div className="flex-1 bg-[#14213D] text-white font-['Space_Grotesk'] text-[20px] font-semibold leading-relaxed rounded-[16px] p-[28px_30px] shadow-[0_10px_20px_-10px_rgba(20,33,61,0.5)] flex items-center">
+                {currentQuestion.text}
+              </div>
+            </div>
+          ) : currentQuestion.imageUrl ? (
+            <div className="mb-[28px]">
+               <div className="mb-4">
+                 <img src={currentQuestion.imageUrl} alt="Question Media" className="max-h-[220px] rounded-[12px]" />
+               </div>
+               <div className="font-['Space_Grotesk'] text-[20px] font-semibold leading-relaxed text-[#14213D] bg-[#FBF7EE] border border-[#E4DCC8] rounded-[14px] p-[28px_30px]">
+                 {currentQuestion.text}
+               </div>
+            </div>
+          ) : (
+            <div className="font-['Space_Grotesk'] text-[20px] font-semibold leading-relaxed text-[#14213D] bg-[#FBF7EE] border border-[#E4DCC8] rounded-[14px] p-[28px_30px] mb-[28px]">
+              {currentQuestion.text}
+            </div>
+          )}
 
           <div className="flex flex-col gap-[12px] mb-[30px]">
             {(currentQuestion.options || []).map((opt, optIdx) => {
@@ -286,6 +328,11 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
                     </div>
                     <div className="text-[14.5px] text-[#14213D] font-medium flex-1 z-20">
                       {opt}
+                      {currentQuestion.optionImages?.[optIdx] && (
+                        <div className="mt-3">
+                          <img src={currentQuestion.optionImages[optIdx]} alt={`Option ${optionLetter}`} className="max-h-[120px] object-contain rounded-lg shadow-sm border border-[#E4DCC8]" />
+                        </div>
+                      )}
                       {shouldShowBars && (
                         <div className="text-[11px] text-[#8A8272] mt-[2px]">{votes} votes</div>
                       )}
@@ -333,6 +380,30 @@ export const LiveQuizScreen: React.FC<LiveQuizScreenProps> = ({
 
         </div>
       </main>
+
+      {/* Add Student Modal */}
+      {showAddStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+            <div className="overflow-y-auto">
+              <StudentManageScreen
+                students={students}
+                allowedClasses={allowedClasses}
+                initialClassId={config.classId}
+                onSaveStudent={(s) => {
+                  onSaveStudent(s);
+                  // Update rollCount dynamically if we're not anonymous
+                  if (!config.isAnonymous) {
+                    const classStudentsCount = students.filter(p => p.classId === config.classId).length + 1; // +1 for the newly added student (optimistic update)
+                    config.rollCount = classStudentsCount;
+                  }
+                }}
+                onBack={() => setShowAddStudent(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -17,6 +17,7 @@ interface StudentDashboardScreenProps {
   onUpdateStudent: (student: Student) => void;
   onDeleteStudent: (macId: string, classId: string) => void;
   onAddStudent?: (classId: string) => void;
+  onBulkAddStudent?: (classId: string) => void;
   onBack: () => void;
 }
 
@@ -36,6 +37,7 @@ export const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({
   onUpdateStudent,
   onDeleteStudent,
   onAddStudent,
+  onBulkAddStudent,
   onBack,
 }) => {
   const { confirm } = useConfirm();
@@ -45,6 +47,7 @@ export const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({
   const [viewingReportsFor, setViewingReportsFor] = useState<Student | null>(null);
   const [viewingClassReports, setViewingClassReports] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'student_reports' | 'class_reports'>('student_reports');
+  const [showAddMethodModal, setShowAddMethodModal] = useState(false);
 
   // Edit Form State
   const [editName, setEditName] = useState('');
@@ -187,7 +190,7 @@ export const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({
             </div>
             <div className="flex gap-2">
               {mode === 'manage' && onAddStudent && expandedClass && (
-                <button onClick={() => onAddStudent(expandedClass)} className="px-4 py-2 bg-amber-500 text-white hover:bg-amber-600 font-semibold rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2">
+                <button onClick={() => setShowAddMethodModal(true)} className="px-4 py-2 bg-amber-500 text-white hover:bg-amber-600 font-semibold rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2">
                   <Plus className="w-4 h-4" /> Add Student
                 </button>
               )}
@@ -460,11 +463,88 @@ export const StudentDashboardScreen: React.FC<StudentDashboardScreenProps> = ({
             const cNormalized = viewingClassReports.toLowerCase().replace('-', ' ').trim();
             return rClassName === cNormalized;
           })}
+          students={students}
+          studentReports={studentReports}
+          setStudentReports={setStudentReports}
+          setClassReports={setClassReports}
           onClose={() => setViewingClassReports(null)}
           onDeleteReport={(id) => {
             setClassReports(prev => prev.filter(r => r.id !== id));
           }}
         />
+      )}
+      {/* Add Method Modal */}
+      {showAddMethodModal && expandedClass && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Add Students to {expandedClass}</h3>
+                <p className="text-sm text-slate-500 mt-1">Choose how you want to add students to this roster.</p>
+              </div>
+              <button
+                onClick={() => setShowAddMethodModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-8 flex flex-col md:flex-row gap-6">
+              {/* Manual Entry Option */}
+              <button
+                onClick={() => {
+                  setShowAddMethodModal(false);
+                  onAddStudent?.(expandedClass);
+                }}
+                className="flex-1 flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-100 rounded-3xl hover:border-amber-400 hover:bg-amber-50 hover:shadow-lg hover:-translate-y-1 transition-all group text-left"
+              >
+                <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-sm">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <h4 className="font-bold text-slate-800 text-lg group-hover:text-amber-700 text-center mb-2">Add Single Student</h4>
+                <p className="text-xs text-slate-500 text-center leading-relaxed">Manually register a single student using their clicker device.</p>
+              </button>
+
+              {/* Bulk Upload Option */}
+              <div className="flex-1">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  className="hidden"
+                  id="excel-upload"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setShowAddMethodModal(false);
+                      onBulkAddStudent?.(expandedClass);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    setShowAddMethodModal(false);
+                    onBulkAddStudent?.(expandedClass);
+                  }}
+                  className="w-full h-full flex flex-col items-center justify-center p-8 bg-white border-2 border-slate-100 rounded-3xl hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-lg hover:-translate-y-1 transition-all group text-left"
+                >
+                  <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-sm">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-lg group-hover:text-indigo-700 text-center mb-2">Add in Bulk</h4>
+                  <p className="text-xs text-slate-500 text-center leading-relaxed">Upload an Excel/CSV sheet to register multiple students at once.</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
