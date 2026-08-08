@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { ClassQuizReport } from '../types';
-import { X, Printer, Trash2, FileText, CheckCircle2, List } from 'lucide-react';
+import { ClassQuizReport, Student, StudentReport } from '../types';
+import { X, Printer, Trash2, FileText, CheckCircle2, List, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { useToast } from '../contexts/ToastContext';
+import { QuizCompleteScreen } from './QuizCompleteScreen';
 
 interface ClassReportModalProps {
   classId: string;
   classNameDisplay: string;
   reports: ClassQuizReport[];
+  students?: Student[];
+  studentReports?: Record<string, StudentReport[]>;
+  setStudentReports?: React.Dispatch<React.SetStateAction<Record<string, StudentReport[]>>>;
+  setClassReports?: React.Dispatch<React.SetStateAction<ClassQuizReport[]>>;
   onClose: () => void;
   onDeleteReport: (reportId: string) => void;
 }
@@ -16,12 +21,17 @@ export const ClassReportModal: React.FC<ClassReportModalProps> = ({
   classId,
   classNameDisplay,
   reports,
+  students = [],
+  studentReports = {},
+  setStudentReports = () => {},
+  setClassReports = () => {},
   onClose,
   onDeleteReport
 }) => {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(
     reports.length > 0 ? reports[0].id : null
   );
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { confirm } = useConfirm();
   const { showToast } = useToast();
 
@@ -38,6 +48,13 @@ export const ClassReportModal: React.FC<ClassReportModalProps> = ({
         {/* Header - Hidden during print */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 bg-white print:hidden shadow-sm z-10 relative">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors print:hidden"
+              title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {isSidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeftOpen className="w-5 h-5" />}
+            </button>
             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl shadow-sm border border-slate-200">
               🏫
             </div>
@@ -57,7 +74,7 @@ export const ClassReportModal: React.FC<ClassReportModalProps> = ({
         <div className="flex flex-1 overflow-hidden print:overflow-visible print:block">
 
           {/* Left Sidebar: List of Reports - Hidden during print */}
-          <div className="w-72 border-r border-slate-200 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 overflow-y-auto flex flex-col print:hidden">
+          <div className={`${isSidebarOpen ? 'w-72' : 'w-0 overflow-hidden'} shrink-0 border-r border-slate-200 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-10 overflow-y-auto flex flex-col print:hidden transition-all duration-300`}>
             {reports.length === 0 ? (
               <div className="p-8 text-center text-sm text-slate-500 italic">No reports saved yet.</div>
             ) : (
@@ -108,40 +125,83 @@ export const ClassReportModal: React.FC<ClassReportModalProps> = ({
           </div>
 
           {/* Right Main Area: Selected Report Details & Printable Area */}
-          <div className="flex-1 flex flex-col bg-slate-100 overflow-y-auto print:bg-white print:overflow-visible print:block">
+          <div className="flex-1 flex flex-col bg-slate-100 overflow-y-auto print:bg-white print:overflow-visible print:block relative">
             {selectedReport ? (
-              <div className="p-8 max-w-5xl mx-auto w-full print:p-0 print:max-w-none">
+              selectedReport.config && selectedReport.questions && selectedReport.results ? (
+                <div id="print-area" className="p-4 sm:p-6 w-full h-full print:p-0 print:block">
+                  <div className="flex justify-end gap-3 mb-4 absolute right-8 top-4 z-50">
+                    <button
+                      onClick={async () => {
+                        const isConfirmed = await confirm({
+                          title: 'Delete Class Report?',
+                          message: 'Are you sure you want to delete this class report? This action cannot be undone.',
+                          isDestructive: true,
+                          confirmText: 'Delete'
+                        });
 
-                {/* Print Action Bar - Hidden during print */}
-                <div className="flex justify-end gap-3 mb-6 print:hidden">
-                  <button
-                    onClick={async () => {
-                      const isConfirmed = await confirm({
-                        title: 'Delete Class Report?',
-                        message: 'Are you sure you want to delete this class report? This action cannot be undone.',
-                        isDestructive: true,
-                        confirmText: 'Delete'
-                      });
-
-                      if (isConfirmed) {
-                        onDeleteReport(selectedReport.id);
-                        if (selectedReportId === selectedReport.id) {
-                          setSelectedReportId(null);
+                        if (isConfirmed) {
+                          onDeleteReport(selectedReport.id);
+                          if (selectedReportId === selectedReport.id) {
+                            setSelectedReportId(null);
+                          }
+                          showToast('Class report deleted', 'success');
                         }
-                        showToast('Class report deleted', 'success');
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-white text-amber-600 border border-amber-200 hover:bg-amber-50 rounded-xl font-bold text-sm transition-colors shadow-sm"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </button>
-                  <button
-                    onClick={handlePrint}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm"
-                  >
-                    <Printer className="w-4 h-4" /> Export PDF / Print
-                  </button>
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-white text-amber-600 border border-amber-200 hover:bg-amber-50 rounded-xl font-bold text-sm transition-colors shadow-sm print:hidden"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                    <button
+                      onClick={handlePrint}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm print:hidden"
+                    >
+                      <Printer className="w-4 h-4" /> Export PDF / Print
+                    </button>
+                  </div>
+                  <QuizCompleteScreen
+                    config={selectedReport.config}
+                    questions={selectedReport.questions}
+                    results={selectedReport.results}
+                    students={students}
+                    studentReports={studentReports}
+                    setStudentReports={setStudentReports}
+                    setClassReports={setClassReports}
+                    onRestart={onClose}
+                    isSavedView={true}
+                  />
                 </div>
+              ) : (
+                <div className="p-8 max-w-5xl mx-auto w-full print:p-0 print:max-w-none">
+                  {/* Print Action Bar - Hidden during print */}
+                  <div className="flex justify-end gap-3 mb-6 print:hidden">
+                    <button
+                      onClick={async () => {
+                        const isConfirmed = await confirm({
+                          title: 'Delete Class Report?',
+                          message: 'Are you sure you want to delete this class report? This action cannot be undone.',
+                          isDestructive: true,
+                          confirmText: 'Delete'
+                        });
+
+                        if (isConfirmed) {
+                          onDeleteReport(selectedReport.id);
+                          if (selectedReportId === selectedReport.id) {
+                            setSelectedReportId(null);
+                          }
+                          showToast('Class report deleted', 'success');
+                        }
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-white text-amber-600 border border-amber-200 hover:bg-amber-50 rounded-xl font-bold text-sm transition-colors shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete
+                    </button>
+                    <button
+                      onClick={handlePrint}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors shadow-sm"
+                    >
+                      <Printer className="w-4 h-4" /> Export PDF / Print
+                    </button>
+                  </div>
 
                 {/* --- PRINTABLE REPORT CONTENT --- */}
                 <div id="print-area" className="bg-white p-8 sm:p-12 rounded-3xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:block">
@@ -381,6 +441,7 @@ export const ClassReportModal: React.FC<ClassReportModalProps> = ({
                   {/* End of Print Area */}
                 </div>
               </div>
+              )
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium flex-col gap-4 print:hidden">
                 <FileText className="w-12 h-12 text-slate-200" />

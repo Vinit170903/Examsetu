@@ -3,11 +3,16 @@ export interface Question {
   type?: string;
   text: string;
   options: string[];
+  optionImages?: string[];
   correct_answer: string;
   source?: string;
   chapter_label: string;
   section_id?: string;
   marks: number;
+  imageUrl?: string; // Optional image for the question
+  hideAnswer?: boolean;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  topic?: string;
   // Poll-specific fields
   pollType?: 'single_choice' | 'yes_no' | 'rating' | 'word_cloud' | 'emoji';
 }
@@ -41,6 +46,7 @@ export interface QuizConfig {
   rollCount: number;
   timerSeconds: number; // Question timer setting
   type: 'quiz' | 'poll'; // Added for poll feature
+  creationMode?: 'ai' | 'custom'; // Added for custom quiz builder
   kb_name: string;
   section_id: string;
   // Poll-specific settings
@@ -65,9 +71,9 @@ export interface Student {
   avatar: string;
 }
 
-export type AppScreen = 'login' | 'class_selection' | 'home' | 'saved_quizzes' | 'saved_polls' | 'student_add' | 'student_register' | 'dashboard' | 'wizard' | 'poll_creator' | 'review' | 'live' | 'complete';
+export type AppScreen = 'login' | 'class_selection' | 'home' | 'saved_quizzes' | 'saved_polls' | 'student_add' | 'student_register' | 'bulk_student_register' | 'dashboard' | 'attendance' | 'wizard' | 'custom_quiz_builder' | 'poll_creator' | 'review' | 'live' | 'complete';
 
-export type AnswerType = 'A' | 'B' | 'C' | 'D';
+export type AnswerType = string;
 
 export interface StudentReport {
   id: string;
@@ -84,6 +90,14 @@ export interface StudentReport {
     picked: string | null;
     isCorrect: boolean;
   }[];
+}
+
+export interface AttendanceRecord {
+  id: string;
+  classId: string;
+  date: number;
+  presentRolls: number[];
+  absentRolls: number[];
 }
 
 export interface ClassQuizReport {
@@ -115,4 +129,7 @@ export interface ClassQuizReport {
     incorrect: number;
     unattempted: number;
   }[];
+  config?: QuizConfig;
+  questions?: Question[];
+  results?: Record<number, string>[];
 }

@@ -98,7 +98,7 @@ export function parseSerialLine(line: string): ParsedLineResult {
 
   // Answer data: [Alex          ]  A
   // Pattern: [ <15 chars name padded> ] <2 spaces> <A/B/C/D>
-  const answerMatch = line.match(/^\[([^\]]{1,25})\]\s+([ABCD])$/);
+  const answerMatch = line.match(/^\[([^\]]{1,25})\]\s+([A-Za-z])$/);
   if (answerMatch) {
     const senderName = answerMatch[1].trim();
     const answer = answerMatch[2] as AnswerType;
@@ -106,13 +106,13 @@ export function parseSerialLine(line: string): ParsedLineResult {
   }
 
   // New format: Answer received: B
-  const simpleAnswerMatch = trimmed.match(/^Answer received:\s*([ABCD])/i);
+  const simpleAnswerMatch = trimmed.match(/^Answer received:\s*([A-Za-z])/i);
   if (simpleAnswerMatch) {
     return { type: 'ANSWER_DATA', data: { name: 'Unknown', answer: simpleAnswerMatch[1].toUpperCase() as AnswerType, isSimple: true } };
   }
 
   // Sender ID format: Answer received from sender ID 7: B
-  const senderIdAnswerMatch = trimmed.match(/^Answer received from sender ID (\d+):\s*([ABCD])/i);
+  const senderIdAnswerMatch = trimmed.match(/^Answer received from sender ID (\d+):\s*([A-Za-z])/i);
   if (senderIdAnswerMatch) {
     return { type: 'ANSWER_DATA', data: { name: senderIdAnswerMatch[1], answer: senderIdAnswerMatch[2].toUpperCase() as AnswerType, isSimple: false } };
   }
