@@ -23,7 +23,11 @@ import { QuizCompleteScreen } from './components/QuizCompleteScreen';
 import { LoginScreen } from './components/LoginScreen';
 import { ClassSelectionScreen } from './components/ClassSelectionScreen';
 import { PollCreatorScreen } from './components/PollCreatorScreen';
-import { CustomQuizBuilderScreen } from './components/CustomQuizBuilderScreen'; // Force IDE refresh
+import { CustomQuizBuilderScreen } from './components/CustomQuizBuilderScreen';
+import { AdminDashboardScreen } from './components/admin/AdminDashboardScreen';
+import { AdminTeacherManageScreen } from './components/admin/AdminTeacherManageScreen';
+import { AdminTeacherInfoScreen } from './components/admin/AdminTeacherInfoScreen';
+import { AdminInstituteInfoScreen } from './components/admin/AdminInstituteInfoScreen';
 
 export const sortClasses = (classes: string[]) => {
   return [...classes].sort((a, b) => {
@@ -37,7 +41,10 @@ export default function App() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const [screen, setScreen] = useState<AppScreen>(() => {
-    return localStorage.getItem('examsetu_is_logged_in') === 'true' ? 'home' : 'login';
+    if (localStorage.getItem('examsetu_is_logged_in') === 'true') {
+      return localStorage.getItem('examsetu_user_role') === 'admin' ? 'admin_dashboard' : 'home';
+    }
+    return 'login';
   });
   const [userName, setUserName] = useState<string>(() => {
     return localStorage.getItem('examsetu_user_name') || 'Teacher';
@@ -47,6 +54,7 @@ export default function App() {
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [quizResults, setQuizResults] = useState<Record<number, string>[]>([]);
   const [preselectedClassId, setPreselectedClassId] = useState<string | undefined>(undefined);
+  const [editingTeacherMac, setEditingTeacherMac] = useState<string | null>(null);
 
   const [allowedClasses, setAllowedClasses] = useState<string[]>(() => {
     try {
@@ -65,7 +73,6 @@ export default function App() {
     localStorage.setItem('examsetu_allowed_classes', JSON.stringify(allowedClasses));
   }, [allowedClasses]);
 
-  // Load saved quizzes from local storage
   const [savedQuizzes, setSavedQuizzes] = useState<SavedQuiz[]>(() => {
     try {
       const item = localStorage.getItem('examsetu_saved_quizzes');
@@ -76,12 +83,10 @@ export default function App() {
     }
   });
 
-  // Save to local storage whenever it changes
   useEffect(() => {
     localStorage.setItem('examsetu_saved_quizzes', JSON.stringify(savedQuizzes));
   }, [savedQuizzes]);
 
-  // Load saved polls from local storage
   const [savedPolls, setSavedPolls] = useState<SavedQuiz[]>(() => {
     try {
       const item = localStorage.getItem('examsetu_saved_polls');
@@ -92,12 +97,10 @@ export default function App() {
     }
   });
 
-  // Save polls to local storage whenever it changes
   useEffect(() => {
     localStorage.setItem('examsetu_saved_polls', JSON.stringify(savedPolls));
   }, [savedPolls]);
 
-  // Load students from local storage
   const [students, setStudents] = useState<Student[]>(() => {
     try {
       const item = localStorage.getItem('examsetu_students');
@@ -112,7 +115,61 @@ export default function App() {
     localStorage.setItem('examsetu_students', JSON.stringify(students));
   }, [students]);
 
-  // Load student reports from local storage
+  const [teachers, setTeachers] = useState<Teacher[]>(() => {
+    try {
+      const item = localStorage.getItem('examsetu_teachers');
+      return item ? JSON.parse(item) : [];
+    } catch (error) {
+      console.error('Error loading teachers', error);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('examsetu_teachers', JSON.stringify(teachers));
+  }, [teachers]);
+
+  const [instituteSubjects, setInstituteSubjects] = useState<Record<string, string[]>>(() => {
+    try {
+      const item = localStorage.getItem('examsetu_institute_subjects');
+      if (item) {
+        return JSON.parse(item);
+      }
+      
+      // Initialize from existing teachers' classSubjects if not in local storage yet
+      const initial: Record<string, string[]> = {};
+      const teachersList = (() => {
+        try {
+          const tItem = localStorage.getItem('examsetu_teachers');
+          return tItem ? JSON.parse(tItem) as Teacher[] : [];
+        } catch {
+          return [];
+        }
+      })();
+      
+      teachersList.forEach(t => {
+        if (t.classSubjects) {
+          Object.entries(t.classSubjects).forEach(([className, subjects]) => {
+            if (!initial[className]) initial[className] = [];
+            subjects.forEach(sub => {
+              if (!initial[className].includes(sub)) {
+                initial[className].push(sub);
+              }
+            });
+          });
+        }
+      });
+      return initial;
+    } catch (error) {
+      console.error('Error loading institute subjects', error);
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('examsetu_institute_subjects', JSON.stringify(instituteSubjects));
+  }, [instituteSubjects]);
+
   const [studentReports, setStudentReports] = useState<Record<string, StudentReport[]>>(() => {
     try {
       const item = localStorage.getItem('examsetu_student_reports');
@@ -127,7 +184,6 @@ export default function App() {
     localStorage.setItem('examsetu_student_reports', JSON.stringify(studentReports));
   }, [studentReports]);
 
-  // Load class reports from local storage
   const [classReports, setClassReports] = useState<ClassQuizReport[]>(() => {
     try {
       const item = localStorage.getItem('examsetu_class_reports');
@@ -142,7 +198,6 @@ export default function App() {
     localStorage.setItem('examsetu_class_reports', JSON.stringify(classReports));
   }, [classReports]);
 
-  // Load attendance records from local storage
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
     try {
       const item = localStorage.getItem('examsetu_attendance_records');
@@ -157,7 +212,6 @@ export default function App() {
     localStorage.setItem('examsetu_attendance_records', JSON.stringify(attendanceRecords));
   }, [attendanceRecords]);
 
-  // Initialize default quiz configuration
   const defaultChapters = getChaptersForClassAndSubject('class-9', 'Science').slice(0, 3);
   const equalWeight = Math.floor(100 / defaultChapters.length);
 
@@ -179,7 +233,6 @@ export default function App() {
     section_id: 'A',
   });
 
-  // MCQ Generator Hook
   const {
     questions,
     isGenerating,
@@ -195,7 +248,6 @@ export default function App() {
     }
   };
 
-  // Home Screen actions
   const handleStartWizard = (quizName: string, type: 'quiz' | 'poll') => {
     setQuizConfig(prev => ({ ...prev, quizName, type, creationMode: 'ai' }));
     if (type === 'poll') {
@@ -218,12 +270,10 @@ export default function App() {
     setScreen(targetScreen);
   };
 
-  // Step 1: Medium selection
   const handleSelectMedium = (medium: Medium) => {
     setQuizConfig((prev) => ({ ...prev, medium }));
   };
 
-  // Step 2: Class selection
   const handleSelectClass = (classId: string, classNameDisplay: string) => {
     const availableSubjects = getSubjectsForClass(classId);
     const defaultSubj = availableSubjects[0] || 'Science';
@@ -242,7 +292,6 @@ export default function App() {
     }));
   };
 
-  // Step 3: Subject selection
   const handleSelectSubject = (subject: string) => {
     const newChapters = getChaptersForClassAndSubject(quizConfig.classId, subject).slice(0, 3);
     const eqW = Math.floor(100 / newChapters.length);
@@ -257,12 +306,10 @@ export default function App() {
     }));
   };
 
-  // Step 4: Chapters selection
   const handleUpdateChapters = (chapters: QuizConfig['chapters']) => {
     setQuizConfig((prev) => ({ ...prev, chapters }));
   };
 
-  // Step 5: Start Quiz Generation
   const handleStartQuiz = async (finalConfig: QuizConfig) => {
     setQuizConfig(finalConfig);
     if (finalConfig.creationMode === 'custom') {
@@ -276,7 +323,6 @@ export default function App() {
     }
   };
 
-  // Review Actions
   const handleSaveQuiz = () => {
     const newSavedQuiz: SavedQuiz = {
       id: `SQ${Date.now()}`,
@@ -285,9 +331,6 @@ export default function App() {
       questions: quizQuestions,
     };
 
-    // Replace if we were editing an existing one, or just add new
-    // For now, always add as new to keep it simple, or we could check if it has an ID
-    // Since we don't track "currently editing quiz ID", we just save it as new.
     if (quizConfig.type === 'poll') {
       setSavedPolls(prev => [newSavedQuiz, ...prev]);
     } else {
@@ -309,7 +352,6 @@ export default function App() {
     }
   };
 
-  // Saved Quizzes Actions
   const handlePlaySavedQuiz = (quiz: SavedQuiz) => {
     const updatedQuiz = { ...quiz, lastPlayedAt: Date.now() };
     if (quiz.config.type === 'poll') {
@@ -327,8 +369,6 @@ export default function App() {
     setQuizConfig(quiz.config);
     setQuizQuestions(quiz.questions);
 
-    // Remove the old one from the list so when they save it doesn't duplicate
-    // Or we could track `editingQuizId` but removing it is a quick workaround for "Save as" behavior.
     setSavedQuizzes(prev => prev.filter(q => q.id !== quiz.id));
 
     if (quiz.config.creationMode === 'custom') {
@@ -364,27 +404,31 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
-      {/* Top Bar */}
-      {screen !== 'login' && screen !== 'class_selection' && (
+      {screen !== 'login' && screen !== 'class_selection' && screen !== 'admin_dashboard' && screen !== 'admin_teacher_register' && screen !== 'admin_teacher_info' && screen !== 'admin_institute_info' && (
         <Navbar
           isQuizActive={screen === 'live'}
           onResetQuiz={handleRestartApp}
           onLogout={() => {
             localStorage.removeItem('examsetu_is_logged_in');
             localStorage.removeItem('examsetu_user_name');
+            localStorage.removeItem('examsetu_user_role');
             setScreen('login');
           }}
         />
       )}
 
-      {/* Main Container */}
-      <main className={`flex-1 w-full mx-auto flex flex-col ${screen === 'live' || screen === 'custom_quiz_builder' ? 'px-4 sm:px-8 max-w-[1800px] py-2 sm:py-4' : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6'}`}>
+      <main className={`flex-1 w-full mx-auto flex flex-col ${screen === 'live' || screen === 'custom_quiz_builder' || screen === 'admin_dashboard' || screen === 'admin_teacher_register' || screen === 'admin_teacher_info' || screen === 'admin_institute_info' ? 'w-full px-0 py-0 max-w-full' : 'max-w-7xl px-4 sm:px-6 lg:px-8 py-6'}`}>
         {screen === 'login' && (
-          <LoginScreen onLoginSuccess={(name) => {
+          <LoginScreen onLoginSuccess={(name, role) => {
             localStorage.setItem('examsetu_is_logged_in', 'true');
             localStorage.setItem('examsetu_user_name', name);
+            localStorage.setItem('examsetu_user_role', role);
             setUserName(name);
-            setScreen('class_selection');
+            if (role === 'admin') {
+              setScreen('admin_dashboard');
+            } else {
+              setScreen('class_selection');
+            }
           }} />
         )}
 
@@ -394,6 +438,90 @@ export default function App() {
             onSaveClasses={(classes) => {
               setAllowedClasses(sortClasses(classes));
               setScreen('home');
+            }}
+          />
+        )}
+
+        {screen === 'admin_dashboard' && (
+          <AdminDashboardScreen 
+            teachers={teachers}
+            onRegister={() => {
+              setEditingTeacherMac(null);
+              setScreen('admin_teacher_register');
+            }}
+            onViewInfo={() => setScreen('admin_teacher_info')}
+            onViewInstituteInfo={() => setScreen('admin_institute_info')}
+            onEdit={(macId) => {
+              setEditingTeacherMac(macId);
+              setScreen('admin_teacher_register');
+            }}
+            onBack={() => setScreen('login')} 
+          />
+        )}
+
+        {screen === 'admin_teacher_info' && (
+          <AdminTeacherInfoScreen
+            teachers={teachers}
+            onEditTeacher={(macId) => {
+              setEditingTeacherMac(macId);
+              setScreen('admin_teacher_register');
+            }}
+            onBack={() => setScreen('admin_dashboard')}
+          />
+        )}
+
+        {screen === 'admin_institute_info' && (
+          <AdminInstituteInfoScreen
+            teachers={teachers}
+            allowedClasses={allowedClasses}
+            instituteSubjects={instituteSubjects}
+            onSaveInstituteInfo={(newInstituteSubjects, updatedTeachers) => {
+              setInstituteSubjects(newInstituteSubjects);
+              setTeachers(updatedTeachers);
+              showToast('Institute subjects and assignments saved successfully!', 'success');
+              setScreen('admin_dashboard');
+            }}
+            onBack={() => setScreen('admin_dashboard')}
+          />
+        )}
+
+        {screen === 'admin_teacher_register' && (
+          <AdminTeacherManageScreen
+            teachers={teachers}
+            allowedClasses={allowedClasses}
+            initialMacId={editingTeacherMac}
+            onSaveTeacher={(t) => {
+              setTeachers(prev => {
+                const existing = prev.findIndex(p => p.macId === t.macId);
+                if (existing >= 0) {
+                  const newArr = [...prev];
+                  newArr[existing] = t;
+                  return newArr;
+                }
+                return [...prev, t];
+              });
+              showToast(`Teacher ${t.name} saved successfully!`, 'success');
+              if (editingTeacherMac) {
+                setScreen('admin_teacher_info');
+              } else {
+                setScreen('admin_dashboard');
+              }
+            }}
+            onDeleteTeacher={(macId) => {
+              setTeachers(prev => prev.filter(t => t.macId !== macId));
+              showToast('Teacher removed successfully', 'success');
+              if (editingTeacherMac) {
+                setScreen('admin_teacher_info');
+              } else {
+                setScreen('admin_dashboard');
+              }
+            }}
+            onBack={() => {
+              if (editingTeacherMac) {
+                setScreen('admin_teacher_info');
+              } else {
+                setScreen('admin_dashboard');
+              }
             }}
           />
         )}

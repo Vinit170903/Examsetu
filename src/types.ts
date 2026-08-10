@@ -62,6 +62,18 @@ export interface SavedQuiz {
   questions: Question[];
 }
 
+export interface Teacher {
+  macId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  avatar: string;
+  isActive: boolean;
+  assignedClasses: string[];
+  classSubjects?: Record<string, string[]>; // e.g. { "Class 8": ["Mathematics", "Science"] }
+  assignedSubjects: string[]; // Deprecated, kept for backward compatibility during transition
+}
+
 export interface Student {
   macId: string;
   name: string;
@@ -71,7 +83,7 @@ export interface Student {
   avatar: string;
 }
 
-export type AppScreen = 'login' | 'class_selection' | 'home' | 'saved_quizzes' | 'saved_polls' | 'student_add' | 'student_register' | 'bulk_student_register' | 'dashboard' | 'attendance' | 'wizard' | 'custom_quiz_builder' | 'poll_creator' | 'review' | 'live' | 'complete';
+export type AppScreen = 'login' | 'class_selection' | 'home' | 'saved_quizzes' | 'saved_polls' | 'student_add' | 'student_register' | 'bulk_student_register' | 'dashboard' | 'attendance' | 'wizard' | 'custom_quiz_builder' | 'poll_creator' | 'review' | 'live' | 'complete' | 'admin_dashboard' | 'admin_teacher_register' | 'admin_teacher_info' | 'admin_institute_info';
 
 export type AnswerType = string;
 
